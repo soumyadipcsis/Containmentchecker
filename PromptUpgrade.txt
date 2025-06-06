@@ -9,7 +9,7 @@ for resetting temp.
 its core logic of computing the factorial of
 a number n. Use the following guidelines to construct SFC2:
 
-Input Format for SFC1:
+SFC1 File:
 steps1 = [  
     {"name": "Start", "function": "i := 1; fact := 1"},  
     {"name": "Check", "function": ""},  

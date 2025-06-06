@@ -1,34 +1,56 @@
+```
 Given the following SFC1, modify it to create a new SFC (SFC2).
 
-Upgraded Feature: 
-1. adds the ability to track the number of loop iterations 
-using the auxiliary variable temp and introduces a cleanup mechanism 
-for resetting temp. 
+***Upgraded*** Feature: 
 
-2. The goal is to extend the functionality of SFC1 while preserving 
-its core logic of computing the factorial of
-a number n. Use the following guidelines to construct SFC2:
+Upgrade rules for Factorial :
 
-SFC1 File:
-steps1 = [  
-    {"name": "Start", "function": "i := 1; fact := 1"},  
-    {"name": "Check", "function": ""},  
-    {"name": "Multiply", "function": "fact := fact * i"},  
-    {"name": "Increment", "function": "i := i + 1"},  
-    {"name": "End", "function": ""}  
-]  
-transitions1 = [  
-    {"src": "Start", "tgt": "Check", "guard": "init"},  
-    {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},  
-    {"src": "Multiply", "tgt": "Increment", "guard": "True"},  
-    {"src": "Increment", "tgt": "Check", "guard": "True"},  
-    {"src": "Check", "tgt": "End", "guard": "i > n"}  
-]  
-sfc1 = SFC(  
-    steps=steps1,  
-    variables=["i", "fact", "n", "init"],  
-    transitions=transitions1,  
-    initial_step="Start"  
-)  
+    - adds the ability to track the number of loop iterations 
+      using the auxiliary variable temp and introduces a cleanup mechanism 
+      for resetting temp. (For Factorial) 
 
-No explanation is required
+
+   Upgrade rules-R1 for DEC TO HEX :
+
+
+    -  Uses only integers/arithmetic, ready for direct 
+       use in hardware/PLCs. (DEC TO HEX)
+  
+  
+    Upgrade rules-R2 for DEC TO HEX :
+
+    -   The HexValue should be a string, not a number 
+
+    -   Error handling should output "Error" instead of -1
+
+    -  The conversion should accumulate hexadecimal characters as a string
+
+
+****Use*** the following guidelines to construct SFC2:
+
+
+steps = [
+    { name: StepName1, function: FunctionOrAssignment1 },
+    { name: StepName2, function: FunctionOrAssignment2 },
+    ...
+]
+
+transitions = [
+    { src: StepNameX, tgt: StepNameY, guard: GuardCondition1 },
+    { src: StepNameY, tgt: StepNameZ, guard: GuardCondition2 },
+    ...
+]
+
+variables = [ var1, var2, var3, ... ]
+initial_step = StepName1
+
+
+****************************************************************
+
+
+Input SFC1: ***Paste the code ******
+
+
+
+
+*******No explanation is required************```

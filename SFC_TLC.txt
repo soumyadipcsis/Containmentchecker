@@ -1,0 +1,22 @@
+    steps1 = [
+        {"name": "NormalOperation", "function": "GreenLight := True; YellowLight := False; RedLight := False"},
+        {"name": "Pedestrian", "function": "GreenLight := False; YellowLight := True; RedLight := False"},
+        {"name": "Emergency", "function": "GreenLight := False; YellowLight := False; RedLight := True"},
+        {"name": "Cleanup", "function": "PedestrianRequest := False; EmergencyVehicle := False"},
+        {"name": "End", "function": ""}
+    ]
+  
+    transitions1 = [  
+        {"src": "NormalOperation", "tgt": "Pedestrian", "guard": "PedestrianRequest==1"},  
+        {"src": "NormalOperation", "tgt": "Emergency", "guard": "EmergencyVehicle==1"},  
+        {"src": "Pedestrian", "tgt": "NormalOperation", "guard": "PedestrianRequest==0"},  
+        {"src": "Emergency", "tgt": "NormalOperation", "guard": "EmergencyVehicle==0"},  
+        {"src": "Cleanup", "tgt": "End", "guard": "True"}  
+    ]  
+  
+    sfc1 = SFC(  
+        steps=steps1,  
+        variables=["GreenLight", "YellowLight", "RedLight", "PedestrianRequest", "EmergencyVehicle"],  
+        transitions=transitions1,  
+        initial_step="NormalOperation"  
+    )  

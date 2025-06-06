@@ -249,10 +249,8 @@ def cutpoint_to_cutpoint_paths_with_conditions(sfc, pn, cutpoints, allowed_varia
                     pairs = to_z3_assign(assign, subst)
                     for lhs, rhs in pairs:
                         subst[lhs] = rhs
-                        # Always add, but filter for display below
                         subst_history.append(f"(= {lhs} {infix_to_sexpr(rhs)})")
         z3_condition = "true" if not guards else f"(and {' '.join(guards)})" if len(guards) > 1 else guards[0]
-        # Now filter subst_history for allowed_variables (for display and matching)
         if allowed_variables is not None:
             filtered_subst = []
             for s in subst_history:
@@ -291,11 +289,17 @@ def cutpoint_to_cutpoint_paths_with_conditions(sfc, pn, cutpoints, allowed_varia
 def z3_vars(variable_names):
     return {v: z3.Int(v) for v in variable_names}
 
+def preprocess_condition_for_equivalence(expr):
+    expr = expr.strip()
+    # Treat 'init' as 'true' for equivalence checking
+    if expr == "init":
+        return "true"
+    return expr
+
 def parse_z3_expr(expr, variables):
     def tokenize(s):
         s = s.replace('(', ' ( ').replace(')', ' ) ')
         return s.split()
-    tokens = tokenize(expr)
     def parse(tokens):
         if not tokens:
             raise SyntaxError("Unexpected EOF")
@@ -357,22 +361,30 @@ def parse_z3_expr(expr, variables):
         if head == 'mod':
             return build(args[0]) % build(args[1])
         return z3.BoolVal(True)
-    if expr.strip() == "true":
+    expr = expr.strip()
+    if expr == "true":
         return z3.BoolVal(True)
-    if expr.strip() == "false":
+    if expr == "false":
         return z3.BoolVal(False)
+    if expr in variables:
+        return variables[expr]
     try:
-        ast = parse(tokens)
-        return build(ast)
+        ast_parsed = parse(tokenize(expr))
+        return build(ast_parsed)
     except Exception as e:
         print(f"Error parsing Z3 expr: {expr}, error: {e}")
         return None
 
 def are_path_conditions_equivalent(cond1, cond2, variables):
+    # Preprocess the conditions to treat 'init' as 'true'
+    cond1 = preprocess_condition_for_equivalence(cond1)
+    cond2 = preprocess_condition_for_equivalence(cond2)
     z3_vars_dict = z3_vars(variables)
     e1 = parse_z3_expr(cond1, z3_vars_dict)
     e2 = parse_z3_expr(cond2, z3_vars_dict)
     if e1 is None or e2 is None:
+        return False
+    if not (z3.is_expr(e1) and z3.is_expr(e2)):
         return False
     s = z3.Solver()
     s.add(e1 != e2)
@@ -502,53 +514,53 @@ def check_pn_containment_html(sfc1, pn1, sfc2, pn2, img_paths={}):
     return html
 
 if __name__ == "__main__":
-    steps1 = [
-        {"name": "Start", "function": "i := 1; fact := 1"},
-        {"name": "Check", "function": ""},
-        {"name": "Multiply", "function": "fact := fact * i"},
-        {"name": "Increment", "function": "i := i + 1"},
-        {"name": "End", "function": ""}
-    ]
-    transitions1 = [
-        {"src": "Start", "tgt": "Check", "guard": "init"},
-        {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},
-        {"src": "Multiply", "tgt": "Increment", "guard": "True"},
-        {"src": "Increment", "tgt": "Check", "guard": "True"},
-        {"src": "Check", "tgt": "End", "guard": "i > n"}
-    ]
-    sfc1 = SFC(
-        steps=steps1, 
-        variables=["i", "fact", "n", "init"],
-        transitions=transitions1,
-        initial_step="Start"
-    )
+    steps1 = [  
+        {"name": "NormalOperation", "function": "GreenLight := True; YellowLight := False; RedLight := False"},  
+        {"name": "Pedestrian", "function": "GreenLight := False; YellowLight := True; RedLight := False"},  
+        {"name": "Emergency", "function": "GreenLight := False; YellowLight := False; RedLight := True"},  
+        {"name": "Cleanup", "function": "PedestrianRequest := False; EmergencyVehicle := False"},  
+        {"name": "End", "function": ""}  
+    ]  
+  
+    transitions1 = [  
+        {"src": "NormalOperation", "tgt": "Pedestrian", "guard": "PedestrianRequest==1"},  
+        {"src": "NormalOperation", "tgt": "Emergency", "guard": "EmergencyVehicle==1"},  
+        {"src": "Pedestrian", "tgt": "NormalOperation", "guard": "PedestrianRequest==0"},  
+        {"src": "Emergency", "tgt": "NormalOperation", "guard": "EmergencyVehicle==0"},  
+        {"src": "Cleanup", "tgt": "End", "guard": "True"}  
+    ]  
+  
+    sfc1 = SFC(  
+        steps=steps1,  
+        variables=["GreenLight", "YellowLight", "RedLight", "PedestrianRequest", "EmergencyVehicle"],  
+        transitions=transitions1,  
+        initial_step="NormalOperation"  
+    )  
     pn1 = sfc_to_petrinet(sfc1)
 
     steps2 = [  
-        {"name": "Start", "function": "i := 1; fact := 1; temp := 0"},  # Initialize variables  
-        {"name": "Check", "function": ""},                              # Check loop condition  
-        {"name": "Multiply", "function": "fact := fact * i; temp := temp + 1"},  # Multiply and update temp  
-        {"name": "Increment", "function": "i := i + 1"},                # Increment the counter  
-        {"name": "ResetTemp", "function": "temp := 0"},                 # Reset temp before ending  
-        {"name": "End", "function": ""}                                 # End process  
+        {"name": "NormalOperation", "function": "GreenLight := True; YellowLight := False; RedLight := False"},  
+        {"name": "Pedestrian", "function": "GreenLight := False; YellowLight := True; RedLight := False"},  
+        {"name": "Emergency", "function": "GreenLight := False; YellowLight := False; RedLight := True"},  
+        {"name": "Cleanup", "function": "PedestrianRequest := False; EmergencyVehicle := False"},  
+        {"name": "End", "function": ""}  
     ]  
   
     transitions2 = [  
-        {"src": "Start", "tgt": "Check", "guard": "init"},              # Transition from Start to Check  
-        {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},         # Transition from Check to Multiply  
-        {"src": "Multiply", "tgt": "Increment", "guard": "True"},       # Transition from Multiply to Increment  
-        {"src": "Increment", "tgt": "Check", "guard": "True"},          # Transition from Increment to Check  
-        {"src": "Check", "tgt": "End", "guard": "i > n"},               # Directly transition from Check to End when i > n  
-        {"src": "Check", "tgt": "ResetTemp", "guard": "i > n && temp != 0"},  # Transition to ResetTemp if temp is non-zero  
-        {"src": "ResetTemp", "tgt": "End", "guard": "True"}             # ResetTemp to End  
+        {"src": "NormalOperation", "tgt": "Pedestrian", "guard": "PedestrianRequest==1"},  
+        {"src": "NormalOperation", "tgt": "Emergency", "guard": "EmergencyVehicle==1"},  
+        {"src": "Pedestrian", "tgt": "NormalOperation", "guard": "PedestrianRequest==0"},  
+        {"src": "Emergency", "tgt": "NormalOperation", "guard": "EmergencyVehicle==0"},  
+        {"src": "Cleanup", "tgt": "End", "guard": "True"}  
     ]  
   
     sfc2 = SFC(  
         steps=steps2,  
-        variables=["i", "fact", "n", "init", "temp"],  # Added `temp` for extended functionality  
+        variables=["GreenLight", "YellowLight", "RedLight", "PedestrianRequest", "EmergencyVehicle"],  
         transitions=transitions2,  
-        initial_step="Start"  
+        initial_step="NormalOperation"  
     )  
+
     pn2 = sfc_to_petrinet(sfc2)
 
     # Diagrams
@@ -572,7 +584,6 @@ if __name__ == "__main__":
     with open("pn_containment_report.html", "w") as f:
         f.write(html_report)
     print("HTML report written to pn_containment_report.html")
-
 
 
 

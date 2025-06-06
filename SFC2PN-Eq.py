@@ -514,52 +514,247 @@ def check_pn_containment_html(sfc1, pn1, sfc2, pn2, img_paths={}):
     return html
 
 if __name__ == "__main__":
-    steps1 = [  
-        {"name": "NormalOperation", "function": "GreenLight := True; YellowLight := False; RedLight := False"},  
-        {"name": "Pedestrian", "function": "GreenLight := False; YellowLight := True; RedLight := False"},  
-        {"name": "Emergency", "function": "GreenLight := False; YellowLight := False; RedLight := True"},  
-        {"name": "Cleanup", "function": "PedestrianRequest := False; EmergencyVehicle := False"},  
-        {"name": "End", "function": ""}  
-    ]  
+
+
+    ######  Input  ####################################################################
+
+    #######################  Trafic Light  ##########################################
+    # steps1 = [
+    #     {"name": "NormalOperation", "function": "GreenLight := True; YellowLight := False; RedLight := False"},
+    #     {"name": "Pedestrian", "function": "GreenLight := False; YellowLight := True; RedLight := False"},
+    #     {"name": "Emergency", "function": "GreenLight := False; YellowLight := False; RedLight := True"},
+    #     {"name": "Cleanup", "function": "PedestrianRequest := False; EmergencyVehicle := False"},
+    #     {"name": "End", "function": ""}
+    # ]
   
-    transitions1 = [  
-        {"src": "NormalOperation", "tgt": "Pedestrian", "guard": "PedestrianRequest==1"},  
-        {"src": "NormalOperation", "tgt": "Emergency", "guard": "EmergencyVehicle==1"},  
-        {"src": "Pedestrian", "tgt": "NormalOperation", "guard": "PedestrianRequest==0"},  
-        {"src": "Emergency", "tgt": "NormalOperation", "guard": "EmergencyVehicle==0"},  
-        {"src": "Cleanup", "tgt": "End", "guard": "True"}  
-    ]  
+    # transitions1 = [  
+    #     {"src": "NormalOperation", "tgt": "Pedestrian", "guard": "PedestrianRequest==1"},  
+    #     {"src": "NormalOperation", "tgt": "Emergency", "guard": "EmergencyVehicle==1"},  
+    #     {"src": "Pedestrian", "tgt": "NormalOperation", "guard": "PedestrianRequest==0"},  
+    #     {"src": "Emergency", "tgt": "NormalOperation", "guard": "EmergencyVehicle==0"},  
+    #     {"src": "Cleanup", "tgt": "End", "guard": "True"}  
+    # ]  
   
-    sfc1 = SFC(  
-        steps=steps1,  
-        variables=["GreenLight", "YellowLight", "RedLight", "PedestrianRequest", "EmergencyVehicle"],  
-        transitions=transitions1,  
-        initial_step="NormalOperation"  
-    )  
+    # sfc1 = SFC(  
+    #     steps=steps1,  
+    #     variables=["GreenLight", "YellowLight", "RedLight", "PedestrianRequest", "EmergencyVehicle"],  
+    #     transitions=transitions1,  
+    #     initial_step="NormalOperation"  
+    # )  
+    ################################################################################
+
+
+    # ###############   Factorial  ################################################
+    # steps1 = [
+    #     {"name": "Start", "function": "i := 1; fact := 1"},
+    #     {"name": "Check", "function": ""},
+    #     {"name": "Multiply", "function": "fact := fact * i"},
+    #     {"name": "Increment", "function": "i := i + 1"},
+    #     {"name": "End", "function": ""}
+    # ]
+    # transitions1 = [
+    #     {"src": "Start", "tgt": "Check", "guard": "init"},
+    #     {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},
+    #     {"src": "Multiply", "tgt": "Increment", "guard": "True"},
+    #     {"src": "Increment", "tgt": "Check", "guard": "True"},
+    #     {"src": "Check", "tgt": "End", "guard": "i > n"}
+    # ]
+    # sfc1 = SFC(
+    #     steps=steps1, 
+    #     variables=["i", "fact", "n", "init"],
+    #     transitions=transitions1,
+    #     initial_step="Start"
+    # )
+    #######################################################################################
+   
+   
+###########################  DECTOHEX   #####################################################
+
+
+    steps1 = [
+        {"name": "Init", "function": "HexValue := ''; TempDecValue := DecValue; i := 9"},
+        {"name": "CheckZero", "function": ""},
+        {"name": "SetZero", "function": "HexValue := '0'; Convert := True"},
+        {"name": "CheckRange", "function": ""},
+        {"name": "SetError", "function": "HexValue := 'Error'; Convert := False"},
+        {"name": "ConvertLoop", "function": ""},
+        {"name": "BuildHex", "function": "TempHex := TempDecValue mod 16; HexValue := HexValue * 16 + TempHex; TempDecValue := TempDecValue / 16"},
+        {"name": "CheckExit", "function": ""},
+        {"name": "SetSuccess", "function": "Convert := True"},
+        {"name": "End", "function": ""}
+    ]
+
+    transitions1 = [
+        {"src": "Init", "tgt": "CheckZero", "guard": "init"},
+        {"src": "CheckZero", "tgt": "SetZero", "guard": "DecValue = 0"},
+        {"src": "SetZero", "tgt": "End", "guard": "True"},
+        {"src": "CheckZero", "tgt": "CheckRange", "guard": "DecValue <> 0"},
+        {"src": "CheckRange", "tgt": "SetError", "guard": "DecValue > 9999999999"},
+        {"src": "SetError", "tgt": "End", "guard": "True"},
+        {"src": "CheckRange", "tgt": "ConvertLoop", "guard": "DecValue <= 9999999999"},
+        {"src": "ConvertLoop", "tgt": "BuildHex", "guard": "i >= 0"},
+        {"src": "BuildHex", "tgt": "CheckExit", "guard": "True"},
+        {"src": "CheckExit", "tgt": "SetSuccess", "guard": "TempDecValue = 0"},
+        {"src": "SetSuccess", "tgt": "End", "guard": "True"},
+        {"src": "CheckExit", "tgt": "ConvertLoop", "guard": "TempDecValue <> 0; i := i - 1"}
+    ]
+
+    sfc1 = SFC(
+        steps=steps1,
+        variables=["DecValue", "HexValue", "TempDecValue", "TempHex", "HexChars", "i", "Convert"],
+        transitions=transitions1,
+        initial_step="Init"
+    )
+  
     pn1 = sfc_to_petrinet(sfc1)
 
-    steps2 = [  
-        {"name": "NormalOperation", "function": "GreenLight := True; YellowLight := False; RedLight := False"},  
-        {"name": "Pedestrian", "function": "GreenLight := False; YellowLight := True; RedLight := False"},  
-        {"name": "Emergency", "function": "GreenLight := False; YellowLight := False; RedLight := True"},  
-        {"name": "Cleanup", "function": "PedestrianRequest := False; EmergencyVehicle := False"},  
-        {"name": "End", "function": ""}  
-    ]  
+    # steps2 = [  
+    #     {"name": "Start", "function": "i := 1; fact := 1; temp := 0"},  
+    #     {"name": "Check", "function": ""},  
+    #     {"name": "Multiply", "function": "fact := fact * i; temp := temp + 1"},  
+    #     {"name": "Increment", "function": "i := i + 1"},  
+    #     {"name": "Cleanup", "function": "temp := 0"},  
+    #     {"name": "End", "function": ""}  
+    # ]  
   
-    transitions2 = [  
-        {"src": "NormalOperation", "tgt": "Pedestrian", "guard": "PedestrianRequest==1"},  
-        {"src": "NormalOperation", "tgt": "Emergency", "guard": "EmergencyVehicle==1"},  
-        {"src": "Pedestrian", "tgt": "NormalOperation", "guard": "PedestrianRequest==0"},  
-        {"src": "Emergency", "tgt": "NormalOperation", "guard": "EmergencyVehicle==0"},  
-        {"src": "Cleanup", "tgt": "End", "guard": "True"}  
-    ]  
+    # transitions2 = [  
+    #     {"src": "Start", "tgt": "Check", "guard": "init"},  
+    #     {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},  
+    #     {"src": "Multiply", "tgt": "Increment", "guard": "True"},  
+    #     {"src": "Increment", "tgt": "Check", "guard": "True"},  
+    #     {"src": "Check", "tgt": "Cleanup", "guard": "i > n"},  
+    #     {"src": "Cleanup", "tgt": "End", "guard": "True"}  
+    # ]  
   
-    sfc2 = SFC(  
-        steps=steps2,  
-        variables=["GreenLight", "YellowLight", "RedLight", "PedestrianRequest", "EmergencyVehicle"],  
-        transitions=transitions2,  
-        initial_step="NormalOperation"  
-    )  
+    # sfc2 = SFC(  
+    #     steps=steps2,  
+    #     variables=["i", "fact", "n", "init", "temp"],  
+    #     transitions=transitions2,  
+    #     initial_step="Start"  
+    # )  
+    # 
+    # 
+    # ##### Factorial ######  First Prompt---> NOT Equivalent ##############################
+   
+   
+    # steps2 = [  
+    #         {"name": "Start", "function": "i := 1; fact := 1; temp := 0"},  
+    #         {"name": "Check", "function": ""},  
+    #         {"name": "Multiply", "function": "fact := fact * i"},  
+    #         {"name": "Increment", "function": "i := i + 1; temp := temp + 1"},  
+    #         {"name": "Cleanup", "function": "temp := 0"},  
+    #         {"name": "End", "function": ""}  
+    # ]  
+  
+    # transitions2 = [  
+    #     {"src": "Start", "tgt": "Check", "guard": "init"},  
+    #     {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},  
+    #     {"src": "Multiply", "tgt": "Increment", "guard": "True"},  
+    #     {"src": "Increment", "tgt": "Check", "guard": "True"},  
+    #     {"src": "Check", "tgt": "Cleanup", "guard": "i > n"},  
+    #     {"src": "Cleanup", "tgt": "End", "guard": "True"},  
+    #     {"src": "Check", "tgt": "End", "guard": "(> i n)", "z3_condition": True, "z3_data_transformation_check": True, "end": "t_4"}  
+    # ]  
+  
+    # sfc2 = SFC(  
+    #     steps=steps2,  
+    #     variables=["i", "fact", "n", "init", "temp"],  
+    #     transitions=transitions2,  
+    #     initial_step="Start"  
+    # ) 
+    # 
+    #  ######  Factorial ########### second promt---> Equivalent ###################
+    # 
+    # 
+
+
+    # ################# DEC TO HEX Upgraded--R2 ##############################################
+    #
+    # steps2 = [
+    #     {"name": "Init", "function": "HexValue := 0; TempDecValue := DecValue; i := 9"},
+    #     {"name": "CheckZero", "function": ""},
+    #     {"name": "SetZero", "function": "HexValue := 0; Convert := 1"},
+    #     {"name": "CheckRange", "function": ""},
+    #     {"name": "SetError", "function": "HexValue := -1; Convert := 0"},
+    #     {"name": "ConvertLoop", "function": ""},
+    #     {"name": "BuildHex", "function": "TempHex := 1 + TempDecValue mod 16; HexValue := TempHex; TempDecValue := TempDecValue / 16"},
+    #     {"name": "CheckExit", "function": ""},
+    #     {"name": "SetSuccess", "function": "Convert := 1"},
+    #     {"name": "End", "function": ""}
+    # ]
+
+    # transitions2 = [
+    #     {"src": "Init", "tgt": "CheckZero", "guard": "init"},
+    #     {"src": "CheckZero", "tgt": "SetZero", "guard": "DecValue = 0"},
+    #     {"src": "SetZero", "tgt": "End", "guard": "True"},
+    #     {"src": "CheckZero", "tgt": "CheckRange", "guard": "DecValue <> 0"},
+    #     {"src": "CheckRange", "tgt": "SetError", "guard": "DecValue > 9999999999"},
+    #     {"src": "SetError", "tgt": "End", "guard": "True"},
+    #     {"src": "CheckRange", "tgt": "ConvertLoop", "guard": "DecValue <= 9999999999"},
+    #     {"src": "ConvertLoop", "tgt": "BuildHex", "guard": "i >= 0"},
+    #     {"src": "BuildHex", "tgt": "CheckExit", "guard": "True"},
+    #     {"src": "CheckExit", "tgt": "SetSuccess", "guard": "TempDecValue = 0"},
+    #     {"src": "SetSuccess", "tgt": "End", "guard": "True"},
+    #     {"src": "CheckExit", "tgt": "ConvertLoop", "guard": "TempDecValue <> 0; i := i - 1"}
+    # ]
+
+    # sfc2 = SFC(
+    #     steps=steps2,
+    #     variables=["DecValue", "HexValue", "TempDecValue", "TempHex", "HexChars", "i", "Convert"],
+    #     transitions=transitions2,
+    #     initial_step="Init"
+    # )
+
+    ######## First Prompt ---> Equivalent ###############################
+    # #####################################################################
+
+
+
+
+
+
+    ############### Add rules R1: Uses only integers/arithmetic, ready for direct
+                  ##### use in hardware/PLCs.##############
+
+    ###########################             #######                     ################################
+    ##########################################################################
+    
+    # steps2 = [
+    #     {"name": "Init", "function": "HexValue := 0; TempDecValue := DecValue; i := 9"},
+    #     {"name": "CheckZero", "function": ""},
+    #     {"name": "SetZero", "function": "HexValue := 0; Convert := 1"},
+    #     {"name": "CheckRange", "function": ""},
+    #     {"name": "SetError", "function": "HexValue := -1; Convert := 0"},
+    #     {"name": "ConvertLoop", "function": ""},
+    #     {"name": "BuildHex", "function": "TempHex := TempDecValue mod 16; HexValue := HexValue * 16 + TempHex; TempDecValue := TempDecValue / 16"},
+    #     {"name": "CheckExit", "function": ""},
+    #     {"name": "SetSuccess", "function": "Convert := 1"},
+    #     {"name": "End", "function": ""}
+    # ]
+
+    # transitions2 = [
+    #     {"src": "Init", "tgt": "CheckZero", "guard": "init"},
+    #     {"src": "CheckZero", "tgt": "SetZero", "guard": "DecValue = 0"},
+    #     {"src": "SetZero", "tgt": "End", "guard": "1"},
+    #     {"src": "CheckZero", "tgt": "CheckRange", "guard": "DecValue <> 0"},
+    #     {"src": "CheckRange", "tgt": "SetError", "guard": "DecValue > 9999999999"},
+    #     {"src": "SetError", "tgt": "End", "guard": "1"},
+    #     {"src": "CheckRange", "tgt": "ConvertLoop", "guard": "DecValue <= 9999999999"},
+    #     {"src": "ConvertLoop", "tgt": "BuildHex", "guard": "i >= 0"},
+    #     {"src": "BuildHex", "tgt": "CheckExit", "guard": "1"},
+    #     {"src": "CheckExit", "tgt": "SetSuccess", "guard": "TempDecValue = 0"},
+    #     {"src": "SetSuccess", "tgt": "End", "guard": "1"},
+    #     {"src": "CheckExit", "tgt": "ConvertLoop", "guard": "TempDecValue <> 0; i := i - 1"}
+    # ]
+
+    # sfc2 = SFC(
+    #     steps=steps2,
+    #     variables=["DecValue", "HexValue", "TempDecValue", "TempHex", "i", "Convert"],
+    #     transitions=transitions2,
+    #     initial_step="Init"
+    # )
+
+    ########################### First Prompt---> Eqivalent #####################################
 
     pn2 = sfc_to_petrinet(sfc2)
 
@@ -587,6 +782,23 @@ if __name__ == "__main__":
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########################END####################################################
 
 
 

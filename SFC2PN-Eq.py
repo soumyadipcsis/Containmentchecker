@@ -197,7 +197,7 @@ def find_cut_points(pn):
             cut_points.add(p)
     return sorted(list(cut_points))
 
-def cutpoint_to_cutpoint_paths_with_conditions(sfc, pn, cutpoints):
+def cutpoint_to_cutpoint_paths_with_conditions(sfc, pn, cutpoints, allowed_variables=None):
     out_transitions = {p: set() for p in pn["places"]}
     trans_to_places = {t: set() for t in pn["transitions"]}
     for (p, t) in pn["input_arcs"]:
@@ -216,16 +216,16 @@ def cutpoint_to_cutpoint_paths_with_conditions(sfc, pn, cutpoints):
         return re.sub(rf'\b{word}\b', replacement, text)
     def to_z3_assign(assign, subst):
         try:
-            # Support chains: 'i := i+1; fact := fact*i'
             assigns = [a.strip() for a in assign.split(";") if a.strip()]
             out_pairs = []
             for a in assigns:
-                lhs, rhs = a.split(":=")
-                lhs = lhs.strip()
-                rhs = rhs.strip()
-                for var, val in subst.items():
-                    rhs = replace_whole_word(rhs, var, val)
-                out_pairs.append((lhs, rhs))
+                if ':=' in a:
+                    lhs, rhs = a.split(":=")
+                    lhs = lhs.strip()
+                    rhs = rhs.strip()
+                    for var, val in subst.items():
+                        rhs = replace_whole_word(rhs, var, val)
+                    out_pairs.append((lhs, rhs))
             return out_pairs
         except Exception:
             return []
@@ -249,9 +249,21 @@ def cutpoint_to_cutpoint_paths_with_conditions(sfc, pn, cutpoints):
                     pairs = to_z3_assign(assign, subst)
                     for lhs, rhs in pairs:
                         subst[lhs] = rhs
+                        # Always add, but filter for display below
                         subst_history.append(f"(= {lhs} {infix_to_sexpr(rhs)})")
         z3_condition = "true" if not guards else f"(and {' '.join(guards)})" if len(guards) > 1 else guards[0]
-        z3_data_transform = "true" if not subst_history else f"(and {' '.join(subst_history)})" if len(subst_history) > 1 else subst_history[0]
+        # Now filter subst_history for allowed_variables (for display and matching)
+        if allowed_variables is not None:
+            filtered_subst = []
+            for s in subst_history:
+                m = re.match(r"\(= ([^ ]+)", s)
+                if m and m.group(1) in allowed_variables:
+                    filtered_subst.append(s)
+            subst_history = filtered_subst
+        z3_data_transform = (
+            "true" if not subst_history else
+            f"(and {' '.join(subst_history)})" if len(subst_history) > 1 else subst_history[0]
+        )
         return z3_condition, z3_data_transform
     def dfs(current_place, current_path, visited, start_cut):
         if len(current_path) > 0 and current_place in cutpoint_set:
@@ -366,14 +378,28 @@ def are_path_conditions_equivalent(cond1, cond2, variables):
     s.add(e1 != e2)
     return s.check() == z3.unsat
 
-def are_data_transformations_identical(subst1, subst2, variables):
-    if subst1.strip() == "true" and subst2.strip() == "true":
-        return True
-    # If only one is "true", they are not equivalent
-    if subst1.strip() == "true" or subst2.strip() == "true":
-        return False
-    # Must be lexically identical (strongest form of equivalence)
-    return subst1.strip() == subst2.strip()
+def parse_z3_assignments(expr):
+    expr = expr.strip()
+    if expr == "true":
+        return {}
+    if expr.startswith("(and "):
+        expr = expr[5:-1].strip()
+    assignments = {}
+    for m in re.finditer(r'\(\=\s*([^\s]+)\s+([^)]+)\)', expr):
+        lhs = m.group(1)
+        rhs = m.group(2).strip()
+        assignments[lhs] = rhs
+    return assignments
+
+def are_data_transformations_equivalent(subst1, subst2, allowed_vars):
+    d1 = parse_z3_assignments(subst1)
+    d2 = parse_z3_assignments(subst2)
+    for v in allowed_vars:
+        v1 = d1.get(v, None)
+        v2 = d2.get(v, None)
+        if v1 != v2:
+            return False
+    return True
 
 def html_escape(s):
     import html
@@ -386,43 +412,32 @@ def img_to_base64(path):
         data = f.read()
         return base64.b64encode(data).decode("ascii")
 
-def check_pn_equivalence_html(sfc1, pn1, sfc2, pn2, img_paths={}):
+def check_pn_containment_html(sfc1, pn1, sfc2, pn2, img_paths={}):
     cutpoints1 = find_cut_points(pn1)
     cutpoints2 = find_cut_points(pn2)
-    paths1 = cutpoint_to_cutpoint_paths_with_conditions(sfc1, pn1, cutpoints1)
-    paths2 = cutpoint_to_cutpoint_paths_with_conditions(sfc2, pn2, cutpoints2)
+    common_vars = list(sorted(set(sfc1.variables) & set(sfc2.variables)))
+    paths1 = cutpoint_to_cutpoint_paths_with_conditions(sfc1, pn1, cutpoints1, allowed_variables=common_vars)
+    paths2 = cutpoint_to_cutpoint_paths_with_conditions(sfc2, pn2, cutpoints2, allowed_variables=common_vars)
     unmatched1 = []
     matches1 = []
     for p1 in paths1:
         found = False
         for p2 in paths2:
-            if are_path_conditions_equivalent(p1["cond"], p2["cond"], sfc1.variables) \
-               and are_data_transformations_identical(p1["subst"], p2["subst"], sfc1.variables):
+            if are_path_conditions_equivalent(p1["cond"], p2["cond"], common_vars) \
+               and are_data_transformations_equivalent(p1["subst"], p2["subst"], common_vars):
                 found = True
                 matches1.append((p1, p2))
                 break
         if not found:
             unmatched1.append(p1)
-    unmatched2 = []
-    matches2 = []
-    for p2 in paths2:
-        found = False
-        for p1 in paths1:
-            if are_path_conditions_equivalent(p1["cond"], p2["cond"], sfc1.variables) \
-               and are_data_transformations_identical(p1["subst"], p2["subst"], sfc1.variables):
-                found = True
-                matches2.append((p2, p1))
-                break
-        if not found:
-            unmatched2.append(p2)
-    equivalent = (not unmatched1) and (not unmatched2)
+    contained = not unmatched1
     html = ""
-    html += "<html><head><title>Petri Net Model Equivalence Report</title>"
+    html += "<html><head><title>Petri Net Model Containment Report</title>"
     html += """
     <style>
     body { font-family: Arial, sans-serif; }
-    .equiv { color: green; font-weight: bold; }
-    .notequiv { color: red; font-weight: bold; }
+    .contained { color: green; font-weight: bold; }
+    .notcontained { color: red; font-weight: bold; }
     table { border-collapse: collapse; margin-bottom: 2em; }
     th, td { border: 1px solid #aaa; padding: 5px 10px; }
     th { background: #e4edfa; }
@@ -432,7 +447,7 @@ def check_pn_equivalence_html(sfc1, pn1, sfc2, pn2, img_paths={}):
     .imgblock { margin: 1em 0; }
     </style></head><body>
     """
-    html += "<h1>Petri Net Model Equivalence Report</h1>"
+    html += "<h1>Petri Net Model Containment Report</h1>"
     html += "<div class='section'><h2>Model Diagrams</h2><table><tr>"
     for key, label in [
         ("sfc1", "SFC 1"), ("pn1", "PN 1"), ("sfc2", "SFC 2"), ("pn2", "PN 2")
@@ -461,7 +476,7 @@ def check_pn_equivalence_html(sfc1, pn1, sfc2, pn2, img_paths={}):
         return s
     html += path_table(paths1, "Model 1 Cut-Point Paths")
     html += path_table(paths2, "Model 2 Cut-Point Paths")
-    html += "<div class='section'><h2>Path Matching (Model 1 to Model 2)</h2>"
+    html += "<div class='section'><h2>Path Mapping (Model 1 to Model 2)</h2>"
     if matches1:
         html += "<table class='path-table'><tr><th>Model 1 Path</th><th>Model 2 Path</th><th>Condition</th><th>Data Transformation</th></tr>"
         for p1, p2 in matches1:
@@ -476,21 +491,17 @@ def check_pn_equivalence_html(sfc1, pn1, sfc2, pn2, img_paths={}):
         html += "<div>No matched paths found.</div>"
     html += "</div>"
     if unmatched1:
-        html += "<div class='section'><h2>Paths in Model 1 with NO match in Model 2</h2>"
+        html += "<div class='section'><h2>Paths in Model 1 with NO equivalent path in Model 2</h2>"
         html += path_table(unmatched1, "")
-    if unmatched2:
-        html += "<div class='section'><h2>Paths in Model 2 with NO match in Model 1</h2>"
-        html += path_table(unmatched2, "")
-    html += "<div class='section'><h2>Equivalence Result</h2>"
-    if equivalent:
-        html += "<span class='equiv'>One PN model is contained within another model (all path conditions and data transformations match).</span>"
+    html += "<div class='section'><h2>Containment Result</h2>"
+    if contained:
+        html += "<span class='contained'>All paths of Model 1 are equivalent to some path of Model 2 (Model 1 is contained in Model 2).</span>"
     else:
-        html += "<span class='notequiv'>The two PN models are NOT equivalent.</span>"
+        html += "<span class='notcontained'>There are paths in Model 1 that are not matched in Model 2 (Containment does NOT hold).</span>"
     html += "</div></body></html>"
     return html
 
 if __name__ == "__main__":
-    
     steps1 = [
         {"name": "Start", "function": "i := 1; fact := 1"},
         {"name": "Check", "function": ""},
@@ -513,27 +524,31 @@ if __name__ == "__main__":
     )
     pn1 = sfc_to_petrinet(sfc1)
 
-    
-    steps2 = [
-    {"name": "Init", "function": "fact := 1; i := n; add := n + 10"},   # 'add' operation before loop, not used
-    {"name": "Check", "function": ""},
-    {"name": "Multiply", "function": "fact := fact * i"},
-    {"name": "Decrement", "function": "i := i - 1"},
-    {"name": "End", "function": ""}
-    ]
-    transitions2 = [
-        {"src": "Init", "tgt": "Check", "guard": "init"},
-        {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},
-        {"src": "Multiply", "tgt": "Decrement", "guard": "True"},
-        {"src": "Decrement", "tgt": "Check", "guard": "True"},
-        {"src": "Check", "tgt": "End", "guard": "i >= n"}
-    ]
-    sfc2 = SFC(
-        steps=steps2,
-        variables=["i", "fact", "n", "add", "init"],  # include 'add' variable
-        transitions=transitions2,
-        initial_step="Init"
-    )
+    steps2 = [  
+        {"name": "Start", "function": "i := 1; fact := 1; temp := 0"},  # Initialize variables  
+        {"name": "Check", "function": ""},                              # Check loop condition  
+        {"name": "Multiply", "function": "fact := fact * i; temp := temp + 1"},  # Multiply and update temp  
+        {"name": "Increment", "function": "i := i + 1"},                # Increment the counter  
+        {"name": "ResetTemp", "function": "temp := 0"},                 # Reset temp before ending  
+        {"name": "End", "function": ""}                                 # End process  
+    ]  
+  
+    transitions2 = [  
+        {"src": "Start", "tgt": "Check", "guard": "init"},              # Transition from Start to Check  
+        {"src": "Check", "tgt": "Multiply", "guard": "i <= n"},         # Transition from Check to Multiply  
+        {"src": "Multiply", "tgt": "Increment", "guard": "True"},       # Transition from Multiply to Increment  
+        {"src": "Increment", "tgt": "Check", "guard": "True"},          # Transition from Increment to Check  
+        {"src": "Check", "tgt": "End", "guard": "i > n"},               # Directly transition from Check to End when i > n  
+        {"src": "Check", "tgt": "ResetTemp", "guard": "i > n && temp != 0"},  # Transition to ResetTemp if temp is non-zero  
+        {"src": "ResetTemp", "tgt": "End", "guard": "True"}             # ResetTemp to End  
+    ]  
+  
+    sfc2 = SFC(  
+        steps=steps2,  
+        variables=["i", "fact", "n", "init", "temp"],  # Added `temp` for extended functionality  
+        transitions=transitions2,  
+        initial_step="Start"  
+    )  
     pn2 = sfc_to_petrinet(sfc2)
 
     # Diagrams
@@ -553,14 +568,10 @@ if __name__ == "__main__":
         "pn2": img_to_base64("pn2.png")
     }
 
-    html_report = check_pn_equivalence_html(sfc1, pn1, sfc2, pn2, img_paths=img_paths)
-    with open("pn_equivalence_report.html", "w") as f:
+    html_report = check_pn_containment_html(sfc1, pn1, sfc2, pn2, img_paths=img_paths)
+    with open("pn_containment_report.html", "w") as f:
         f.write(html_report)
-    print("HTML report written to pn_equivalence_report.html")
-
-
-
-
+    print("HTML report written to pn_containment_report.html")
 
 
 

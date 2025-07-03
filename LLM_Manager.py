@@ -1,3 +1,25 @@
+"""
+LLM Manager for Sequential Function Chart (SFC) Code Generation
+
+This module provides Azure OpenAI integration for upgrading and enhancing SFC code.
+It uses the langchain framework to interact with Azure OpenAI services and generate
+upgraded versions of Sequential Function Charts with additional features.
+
+Features:
+- Azure OpenAI integration with proper error handling
+- Environment variable configuration for security
+- Streaming responses for real-time feedback
+- Comprehensive error handling for API failures
+
+Usage:
+    python LLM_Manager.py <source_file>
+
+Example:
+    python LLM_Manager.py SFC_FACT.txt
+
+Author: Containment Checker Team
+"""
+
 import os
 import sys
 import openai
@@ -45,11 +67,17 @@ No explanation is required
 
 class LLM_Mgr:
     def __init__(self):
-        # Azure OpenAI credentials and configuration
-        api_key = "3ff3542f1ca04ea2bb7ec8068cd914b4"
-        azure_endpoint = "https://karajan-gpt4.openai.azure.com/"
-        api_version = "2023-05-15"
-        deployment = "karajan-gpt4"
+        # Load environment variables
+        load_dotenv()
+        
+        # Azure OpenAI credentials and configuration from environment
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "https://karajan-gpt4.openai.azure.com/")
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15")
+        deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "karajan-gpt4")
+
+        if not api_key:
+            raise ValueError("AZURE_OPENAI_API_KEY environment variable is required. Please set it in your .env file.")
 
         openai.api_key = api_key  # For compatibility
 
@@ -101,26 +129,72 @@ class LLM_Mgr:
             return f"Error: {str(e)}"
 
 def main():
-    load_dotenv()
+    """
+    Main function to process SFC files and generate upgraded code using LLM.
+    
+    Usage:
+        python LLM_Manager.py <source_file>
+    
+    Args:
+        source_file: Path to the input SFC file to be processed
+    
+    The function will:
+    1. Load the input SFC file
+    2. Send it to Azure OpenAI for upgrading
+    3. Save the generated code to a new file with "_Generated.txt" suffix
+    """
     if len(sys.argv) != 2:
-        print("Usage: python LLM_AADL.py <source_file>")
+        print("Usage: python LLM_Manager.py <source_file>")
+        print("\nExample:")
+        print("  python LLM_Manager.py SFC_FACT.txt")
+        print("\nThis will generate an upgraded version of the SFC and save it as SFC_FACT_Generated.txt")
         sys.exit(1)
+    
     src_filepath = sys.argv[1]
 
     if not os.path.isfile(src_filepath):
         print(f"Error: Source file '{src_filepath}' not found.")
+        print("Please ensure the file exists and the path is correct.")
         sys.exit(1)
 
-    with open(src_filepath, "r", encoding="utf-8") as f:
-        src_program = f.read()
+    try:
+        with open(src_filepath, "r", encoding="utf-8") as f:
+            src_program = f.read()
+    except UnicodeDecodeError as e:
+        print(f"Error: Unable to read file '{src_filepath}' with UTF-8 encoding: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading file '{src_filepath}': {e}")
+        sys.exit(1)
 
-    llm_mgr = LLM_Mgr()
-    generated_code = llm_mgr.generate_code(src_program)
+    try:
+        print("Initializing LLM Manager...")
+        llm_mgr = LLM_Mgr()
+        print("Sending SFC to Azure OpenAI for upgrade...")
+        generated_code = llm_mgr.generate_code(src_program)
+        
+        if generated_code.startswith("Error:"):
+            print(f"LLM Generation failed: {generated_code}")
+            sys.exit(1)
+            
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        print("Please check your .env file and ensure all required environment variables are set.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error initializing LLM Manager: {e}")
+        sys.exit(1)
 
-    output_filename = os.path.splitext(src_filepath)[0] + "_Generated.txt"
-    with open(output_filename, "w", encoding="utf-8") as f:
-        f.write(generated_code)
-    print(f"\nGenerated code written to '{output_filename}'")
+    try:
+        output_filename = os.path.splitext(src_filepath)[0] + "_Generated.txt"
+        with open(output_filename, "w", encoding="utf-8") as f:
+            f.write(generated_code)
+        print(f"\nGenerated code written to '{output_filename}'")
+        print(f"Input file: {src_filepath}")
+        print(f"Output file: {output_filename}")
+    except Exception as e:
+        print(f"Error writing output file: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

@@ -5,7 +5,7 @@ steps = [
         {"name": "CheckRange", "function": ""},
         {"name": "SetError", "function": "HexValue := -1; Convert := 0"},
         {"name": "ConvertLoop", "function": ""},
-        {"name": "BuildHex", "function": "TempHex := TempDecValue mod 16; HexValue := HexValue * 16 + TempHex; TempDecValue := TempDecValue / 16"},
+        {"name": "BuildHex", "function": "TempHex := TempDecValue mod 15; HexValue := HexValue * 16 + TempHex; TempDecValue := TempDecValue / 16"},
         {"name": "CheckExit", "function": ""},
         {"name": "SetSuccess", "function": "Convert := 1"},
         {"name": "End", "function": ""}

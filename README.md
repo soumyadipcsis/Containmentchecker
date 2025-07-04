@@ -21,7 +21,9 @@ AntarBhukti is a verification tool for evolving software, designed to verify cha
 **Dependency files:**  
 - `driver.py`  
 - `sfc.py`  
-- `sfc_verifier.py`  
+- `sfc_verifier.py`
+- `genreport.py`
+- `setup.py`
 
 ### Prerequisites
 
